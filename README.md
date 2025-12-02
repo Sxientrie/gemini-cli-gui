@@ -1,4 +1,4 @@
-### gemini-cli-gui
+## gemini-cli-gui
 
 This is a fork of the official [**Google Gemini CLI**](https://github.com/google-gemini/gemini-cli).
 
@@ -8,7 +8,7 @@ The original CLI is a great tool, but sometimes you don't want to stare at a ter
 
 This project wraps the powerful logic of the Gemini agent in a modern Electron interface, giving you the best of both worlds: Google's reasoning engine with a user experience that feels like a real desktop application.
 
-#### How it Works
+### How it Works
 
 We use what we call a "Headless Core" architecture.
 
@@ -20,7 +20,7 @@ The repository is set up as a monorepo. We intentionally treat the original Goog
 
 When you run this app, you aren't just running a web wrapper. The Electron main process actually spins up the Gemini agent directly from the core package.
 
-#### Getting Started
+### Getting Started
 
 Because this is a monorepo with shared dependencies, there is a specific order to get things running.
 
@@ -42,13 +42,13 @@ Because this is a monorepo with shared dependencies, there is a specific order t
     npm run dev --workspace=packages/electron-gui
     ```
 
-#### Development
+### Development
 
 If you want to change how the application looks or feels, you'll spend most of your time in `packages/electron-gui`. We use Vite, so changes to the React components will hot-reload instantly.
 
 If you want to change how the agent thinks or add new tools, you will need to work in `packages/core`. Just remember that if you change the core logic, you have to rebuild that package before the UI will pick up the changes.
 
-#### Relationship to Upstream
+### Relationship to Upstream
 
 We track the official [`google-gemini/gemini-cli`](https://github.com/google-gemini/gemini-cli). repository.
 
