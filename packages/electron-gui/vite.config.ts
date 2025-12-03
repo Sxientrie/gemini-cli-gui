@@ -23,6 +23,7 @@ export default defineConfig({
               external: [
                  'electron',
                  '@google/gemini-cli-core',
+                 'node-pty',
                  // Add other dependencies if needed
               ],
             },

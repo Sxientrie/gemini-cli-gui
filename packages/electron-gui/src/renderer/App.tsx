@@ -4,128 +4,81 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect, useRef } from 'react';
-
-// Define types for the IPC bridge
-interface IElectronAPI {
-  sendMessage: (message: string) => Promise<void>;
-  onResponse: (callback: (response: string) => void) => () => void;
-}
-
-declare global {
-  interface Window {
-    electronAPI: IElectronAPI;
-  }
-}
+import { useState } from 'react';
+import { Terminal } from './components/Terminal';
+import { MacroSidebar } from './components/MacroSidebar';
 
 function App() {
-  const [messages, setMessages] = useState<
-    Array<{ role: 'user' | 'assistant'; content: string }>
-  >([]);
-  const [input, setInput] = useState('');
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [isDragging, setIsDragging] = useState(false);
 
-  useEffect(() => {
-    // Listen for responses
+  const handleMacroRun = (command: string) => {
     if (window.electronAPI) {
-      const cleanup = window.electronAPI.onResponse((response) => {
-        setMessages((prev) => {
-          // Check if the last message is from assistant, if so append, else create new
-          const lastMsg = prev[prev.length - 1];
-          if (lastMsg && lastMsg.role === 'assistant') {
-            return [
-              ...prev.slice(0, -1),
-              { ...lastMsg, content: lastMsg.content + response },
-            ];
-          }
-          return [...prev, { role: 'assistant', content: response }];
-        });
-      });
-      return cleanup;
+      // Send command followed by newline to execute
+      window.electronAPI.writeToTerminal(`${command}\r`);
     }
-    return () => {};
-  }, []);
-
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
-
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
-    if (!input.trim()) return;
+    setIsDragging(true);
+  };
 
-    const userMessage = input;
-    setMessages((prev) => [...prev, { role: 'user', content: userMessage }]);
-    setInput('');
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
 
-    if (window.electronAPI) {
-      await window.electronAPI.sendMessage(userMessage);
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      const path = e.dataTransfer.files[0].path;
+      if (path && window.electronAPI) {
+        // Quote path to handle spaces
+        window.electronAPI.writeToTerminal(`cd "${path}"\r`);
+        window.electronAPI.writeToTerminal(`clear\r`); // Optional: clear screen for fresh start
+        window.electronAPI.writeToTerminal(`echo "Context switched to: ${path}"\r`);
+      }
     }
   };
 
   return (
-    <div className="flex h-screen w-screen p-3 gap-3 font-sans bg-zinc-950 text-zinc-200 overflow-hidden">
-      {/* Sidebar Island */}
-      <div className="w-64 flex flex-col bg-zinc-900/20 backdrop-blur-sm border border-zinc-800/50 rounded-lg p-4">
-        <h1 className="text-[10px] font-bold tracking-widest text-zinc-500 mb-4">
-          EXPLORER
-        </h1>
-        <div className="flex-1">
-          {/* Navigation items would go here */}
-          <div className="text-[12px] text-zinc-400 hover:text-zinc-200 cursor-pointer mb-2">
-            Chat
-          </div>
-          <div className="text-[12px] text-zinc-500 hover:text-zinc-200 cursor-pointer mb-2">
-            History
+    <div
+      className="flex h-screen w-screen p-3 gap-3 font-sans bg-zinc-950 text-zinc-200 overflow-hidden"
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
+      {/* Visual indicator for Drag & Drop */}
+      {isDragging && (
+        <div className="absolute inset-0 bg-blue-500/10 z-50 pointer-events-none border-2 border-blue-500 rounded-lg flex items-center justify-center">
+          <div className="bg-zinc-900 border border-zinc-700 p-4 rounded-lg shadow-xl text-zinc-200">
+            Drop folder to set terminal context
           </div>
         </div>
-      </div>
+      )}
 
-      {/* Main Chat Island */}
+      {/* Sidebar Island */}
+      <MacroSidebar onRunMacro={handleMacroRun} />
+
+      {/* Main Terminal Island */}
       <div className="flex-1 flex flex-col bg-zinc-900/20 backdrop-blur-sm border border-zinc-800/50 rounded-lg relative overflow-hidden">
         {/* Header */}
-        <div className="h-12 border-b border-zinc-800/50 flex items-center px-4 shrink-0">
-          <h2 className="text-[14px] font-medium text-zinc-200">
-            Gemini Agent
-          </h2>
+        <div className="h-8 border-b border-zinc-800/50 flex items-center px-4 shrink-0 bg-zinc-900/30">
+          <div className="flex gap-1.5">
+            <div className="w-2.5 h-2.5 rounded-full bg-zinc-700" />
+            <div className="w-2.5 h-2.5 rounded-full bg-zinc-700" />
+            <div className="w-2.5 h-2.5 rounded-full bg-zinc-700" />
+          </div>
+          <div className="ml-4 text-[12px] text-zinc-500 font-mono">
+            gemini-deck (~/user)
+          </div>
         </div>
 
-        {/* Messages Area */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
-          {messages.map((msg, idx) => (
-            <div
-              key={idx}
-              className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-            >
-              <div
-                className={`max-w-[80%] rounded-lg p-3 text-[12px] leading-relaxed whitespace-pre-wrap ${
-                  msg.role === 'user'
-                    ? 'bg-zinc-800 text-zinc-200'
-                    : 'bg-zinc-900/50 text-zinc-300 font-mono'
-                }`}
-              >
-                {msg.content}
-              </div>
-            </div>
-          ))}
-          <div ref={messagesEndRef} />
-        </div>
-
-        {/* Input Area */}
-        <div className="p-4 border-t border-zinc-800/50 bg-zinc-900/10 shrink-0">
-          <form onSubmit={handleSubmit} className="relative">
-            <input
-              type="text"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder="Enter instructions..."
-              className="w-full bg-transparent border border-zinc-700 rounded-md py-2 px-3 text-[12px] text-zinc-200 focus:outline-none focus:border-zinc-500 placeholder-zinc-600"
-            />
-          </form>
+        {/* Terminal Area */}
+        <div className="flex-1 p-1 bg-zinc-950">
+           <Terminal className="h-full w-full" />
         </div>
       </div>
     </div>
