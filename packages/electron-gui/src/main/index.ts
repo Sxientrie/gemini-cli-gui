@@ -5,8 +5,13 @@
  */
 
 import { app, BrowserWindow, ipcMain } from 'electron';
-import { join } from 'node:path';
-import { handleAgentMessage } from './agent-handler';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { handleAgentMessage } from './agent-handler.js';
+
+// ESM helpers
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 // The built directory structure
 //
@@ -44,7 +49,10 @@ function createWindow() {
 
   // Test active push message to Renderer-process.
   win.webContents.on('did-finish-load', () => {
-    win?.webContents.send('main-process-message', new Date().toLocaleString());
+    win?.webContents.send(
+      'main-process-message',
+      new Date().toLocaleString(),
+    );
   });
 
   if (VITE_DEV_SERVER_URL) {

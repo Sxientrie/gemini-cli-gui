@@ -5,12 +5,12 @@
  */
 
 import type { WebContents } from 'electron';
-import type { GeminiClient } from '@google/gemini-cli-core';
 import {
   Config,
   GeminiEventType,
   executeToolCall,
 } from '@google/gemini-cli-core';
+import type { GeminiClient } from '@google/gemini-cli-core';
 
 // Minimal Config implementation for Electron
 async function createConfig(): Promise<Config> {
@@ -71,7 +71,7 @@ export async function handleAgentMessage(
         try {
           // Execute tool
           const completedToolCall = await executeToolCall(
-            config!,
+            config,
             requestInfo,
             abortController.signal,
           );
@@ -81,7 +81,7 @@ export async function handleAgentMessage(
             'agent-response',
             `\n[Tool Result: ${JSON.stringify(completedToolCall.response.resultDisplay)}]\n`,
           );
-        } catch (error: unknown) {
+        } catch (error) {
           const errorMessage =
             error instanceof Error ? error.message : String(error);
           webContents.send(
@@ -96,7 +96,7 @@ export async function handleAgentMessage(
         );
       }
     }
-  } catch (e: unknown) {
+  } catch (e) {
     console.error(e);
     const errorMessage = e instanceof Error ? e.message : String(e);
     webContents.send('agent-response', `Error: ${errorMessage}`);

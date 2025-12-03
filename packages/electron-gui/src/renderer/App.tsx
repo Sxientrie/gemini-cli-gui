@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type React from 'react';
 import { useState, useEffect, useRef } from 'react';
 
 // Define types for the IPC bridge
