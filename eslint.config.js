@@ -31,6 +31,7 @@ export default tseslint.config(
       'node_modules/*',
       'eslint.config.js',
       'packages/**/dist/**',
+      'packages/**/dist-electron/**',
       'bundle/**',
       'package/bundle/**',
       '.integration-tests/**',
@@ -128,6 +129,7 @@ export default tseslint.config(
         'error',
         {
           allow: [
+            'react-dom/client',
             'react-dom/test-utils',
             'memfs/lib/volume.js',
             'yargs/**',
