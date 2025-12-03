@@ -12,11 +12,18 @@
     "electron:build": "npm run build --prefix ../core && vite build && electron-builder"
   },
   "dependencies": {
-    "@google/gemini-cli-core": "0.20.0-nightly.20251201.2fe609cb6",
+    "@google/gemini-cli": "file:../cli",
+    "node-pty": "^1.0.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
+  "build": {
+    "asarUnpack": [
+      "**/*.node"
+    ]
+  },
   "devDependencies": {
+    "@electron/rebuild": "^4.0.1",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^4.2.1",
