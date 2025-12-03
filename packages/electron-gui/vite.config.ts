@@ -21,10 +21,10 @@ export default defineConfig({
             rollupOptions: {
               // Externalize core to avoid bundling issues with WASM/Native modules
               external: [
-                 'electron',
-                 '@google/gemini-cli-core',
-                 'node-pty',
-                 // Add other dependencies if needed
+                'electron',
+                '@google/gemini-cli-core',
+                'node-pty',
+                // Add other dependencies if needed
               ],
             },
           },
@@ -37,9 +37,9 @@ export default defineConfig({
             outDir: 'dist-electron/preload',
             rollupOptions: {
               external: ['electron'],
-            }
-          }
-        }
+            },
+          },
+        },
       },
       renderer: {},
     }),

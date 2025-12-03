@@ -1,98 +1,139 @@
-import { app as o, BrowserWindow as d, ipcMain as l, dialog as f } from "electron";
-import { dirname as u, join as r } from "node:path";
-import { fileURLToPath as y } from "node:url";
-import { exec as g } from "node:child_process";
-import { promisify as P } from "node:util";
-import * as I from "node-pty";
-import { platform as v } from "os";
-class E {
+import { app, BrowserWindow, ipcMain, dialog } from "electron";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { exec } from "node:child_process";
+import { promisify } from "node:util";
+import * as pty from "node-pty";
+import { platform } from "node:os";
+class TerminalManager {
   ptyProcess = null;
   mainWindow;
-  constructor(e) {
-    this.mainWindow = e;
+  constructor(mainWindow) {
+    this.mainWindow = mainWindow;
   }
-  create(e = 24, s = 80, a = process.cwd()) {
-    const h = process.env.SHELL || (v() === "win32" ? "powershell.exe" : "bash");
+  create(rows = 24, cols = 80, cwd = process.cwd()) {
+    const systemShell = process.env["SHELL"] || (platform() === "win32" ? "powershell.exe" : "bash");
     try {
-      this.ptyProcess = I.spawn(h, [], {
+      this.ptyProcess = pty.spawn(systemShell, [], {
         name: "xterm-256color",
-        cols: s,
-        rows: e,
-        cwd: a,
+        cols,
+        rows,
+        cwd,
         env: process.env
-      }), this.ptyProcess.onData((c) => {
-        this.mainWindow && !this.mainWindow.isDestroyed() && this.mainWindow.webContents.send("terminal:incoming", c);
-      }), console.log(`Created terminal process with PID: ${this.ptyProcess.pid}`);
-    } catch (c) {
-      console.error("Failed to create terminal:", c);
+      });
+      this.ptyProcess.onData((data) => {
+        if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+          this.mainWindow.webContents.send("terminal:incoming", data);
+        }
+      });
+      console.log(`Created terminal process with PID: ${this.ptyProcess.pid}`);
+    } catch (e) {
+      console.error("Failed to create terminal:", e);
     }
   }
-  write(e) {
-    this.ptyProcess && this.ptyProcess.write(e);
+  write(data) {
+    if (this.ptyProcess) {
+      this.ptyProcess.write(data);
+    }
   }
-  resize(e, s) {
-    if (this.ptyProcess)
+  resize(cols, rows) {
+    if (this.ptyProcess) {
       try {
-        this.ptyProcess.resize(e, s);
-      } catch (a) {
-        console.error("Error resizing terminal:", a);
+        this.ptyProcess.resize(cols, rows);
+      } catch (e) {
+        console.error("Error resizing terminal:", e);
       }
+    }
   }
   kill() {
-    this.ptyProcess && (this.ptyProcess.kill(), this.ptyProcess = null);
+    if (this.ptyProcess) {
+      this.ptyProcess.kill();
+      this.ptyProcess = null;
+    }
   }
 }
-const L = y(import.meta.url), p = u(L), T = P(g);
-process.env.DIST = r(p, "../../dist");
-process.env.VITE_PUBLIC = o.isPackaged ? process.env.DIST : r(process.env.DIST, "../public");
-let i, n = null;
-const m = process.env.VITE_DEV_SERVER_URL;
-async function _() {
+const __filename$1 = fileURLToPath(import.meta.url);
+const __dirname$1 = dirname(__filename$1);
+const execAsync = promisify(exec);
+process.env["DIST"] = join(__dirname$1, "../../dist");
+process.env["VITE_PUBLIC"] = app.isPackaged ? process.env["DIST"] : join(process.env["DIST"], "../public");
+let win;
+let terminalManager = null;
+const VITE_DEV_SERVER_URL = process.env["VITE_DEV_SERVER_URL"];
+async function checkGeminiCli() {
   try {
-    const e = process.platform === "win32" ? "where gemini" : "which gemini";
-    return await T(e), console.log("Gemini CLI found."), !0;
-  } catch (t) {
-    return console.warn("Gemini CLI not found:", t), i && f.showMessageBox(i, {
-      type: "warning",
-      title: "Gemini CLI Not Found",
-      message: "The `gemini` command was not found in your PATH. Please ensure it is installed to use all features.",
-      buttons: ["OK"]
-    }), !1;
+    const isWin = process.platform === "win32";
+    const cmd = isWin ? "where gemini" : "which gemini";
+    await execAsync(cmd);
+    console.log("Gemini CLI found.");
+    return true;
+  } catch (error) {
+    console.warn("Gemini CLI not found:", error);
+    if (win) {
+      dialog.showMessageBox(win, {
+        type: "warning",
+        title: "Gemini CLI Not Found",
+        message: "The `gemini` command was not found in your PATH. Please ensure it is installed to use all features.",
+        buttons: ["OK"]
+      });
+    }
+    return false;
   }
 }
-function w() {
-  if (i = new d({
+function createWindow() {
+  win = new BrowserWindow({
     width: 1200,
     height: 800,
     backgroundColor: "#09090b",
     webPreferences: {
-      preload: r(p, "../preload/index.js"),
-      contextIsolation: !0,
-      nodeIntegration: !1
+      preload: join(__dirname$1, "../preload/index.js"),
+      contextIsolation: true,
+      nodeIntegration: false
     },
     titleBarStyle: "hiddenInset",
-    autoHideMenuBar: !0
-  }), n = new E(i), i.webContents.on("did-finish-load", () => {
-    i?.webContents.send("main-process-message", (/* @__PURE__ */ new Date()).toLocaleString());
-  }), m)
-    i.loadURL(m);
-  else {
-    const t = process.env.DIST || "";
-    i.loadFile(r(t, "index.html"));
+    autoHideMenuBar: true
+  });
+  terminalManager = new TerminalManager(win);
+  win.webContents.on("did-finish-load", () => {
+    win?.webContents.send("main-process-message", (/* @__PURE__ */ new Date()).toLocaleString());
+  });
+  if (VITE_DEV_SERVER_URL) {
+    win.loadURL(VITE_DEV_SERVER_URL);
+  } else {
+    const dist = process.env["DIST"] || "";
+    win.loadFile(join(dist, "index.html"));
   }
 }
-o.on("window-all-closed", () => {
-  n && n.kill(), i = null, process.platform !== "darwin" && o.quit();
+app.on("window-all-closed", () => {
+  if (terminalManager) {
+    terminalManager.kill();
+  }
+  win = null;
+  if (process.platform !== "darwin") {
+    app.quit();
+  }
 });
-o.on("activate", () => {
-  d.getAllWindows().length === 0 && w();
+app.on("activate", () => {
+  if (BrowserWindow.getAllWindows().length === 0) {
+    createWindow();
+  }
 });
-o.whenReady().then(async () => {
-  w(), await _(), l.on("terminal:create", (t, { cols: e, rows: s }) => {
-    n && n.create(s, e);
-  }), l.on("terminal:write", (t, e) => {
-    n && n.write(e);
-  }), l.on("terminal:resize", (t, { cols: e, rows: s }) => {
-    n && n.resize(e, s);
+app.whenReady().then(async () => {
+  createWindow();
+  await checkGeminiCli();
+  ipcMain.on("terminal:create", (event, { cols, rows }) => {
+    if (terminalManager) {
+      terminalManager.create(rows, cols);
+    }
+  });
+  ipcMain.on("terminal:write", (event, data) => {
+    if (terminalManager) {
+      terminalManager.write(data);
+    }
+  });
+  ipcMain.on("terminal:resize", (event, { cols, rows }) => {
+    if (terminalManager) {
+      terminalManager.resize(cols, rows);
+    }
   });
 });

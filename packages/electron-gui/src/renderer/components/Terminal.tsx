@@ -114,7 +114,7 @@ export function Terminal({ className, onReady }: TerminalProps) {
     return () => {
       term.dispose();
     };
-  }, []);
+  }, [onReady]);
 
   return <div ref={terminalRef} className={`h-full w-full ${className}`} />;
 }

@@ -19,9 +19,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
 
   // Terminal API
-  createTerminal: (cols: number, rows: number) => ipcRenderer.send('terminal:create', { cols, rows }),
+  createTerminal: (cols: number, rows: number) =>
+    ipcRenderer.send('terminal:create', { cols, rows }),
   writeToTerminal: (data: string) => ipcRenderer.send('terminal:write', data),
-  resizeTerminal: (cols: number, rows: number) => ipcRenderer.send('terminal:resize', { cols, rows }),
+  resizeTerminal: (cols: number, rows: number) =>
+    ipcRenderer.send('terminal:resize', { cols, rows }),
   onTerminalData: (callback: (data: string) => void) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const subscription = (_event: any, data: string) => callback(data);
@@ -29,5 +31,5 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return () => {
       ipcRenderer.removeListener('terminal:incoming', subscription);
     };
-  }
+  },
 });

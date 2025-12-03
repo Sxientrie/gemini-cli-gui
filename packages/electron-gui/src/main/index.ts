@@ -39,8 +39,9 @@ async function checkGeminiCli() {
       dialog.showMessageBox(win, {
         type: 'warning',
         title: 'Gemini CLI Not Found',
-        message: 'The `gemini` command was not found in your PATH. Please ensure it is installed to use all features.',
-        buttons: ['OK']
+        message:
+          'The `gemini` command was not found in your PATH. Please ensure it is installed to use all features.',
+        buttons: ['OK'],
       });
     }
     return false;
@@ -96,9 +97,9 @@ app.whenReady().then(async () => {
   await checkGeminiCli();
 
   ipcMain.on('terminal:create', (event, { cols, rows }) => {
-     if (terminalManager) {
-         terminalManager.create(rows, cols);
-     }
+    if (terminalManager) {
+      terminalManager.create(rows, cols);
+    }
   });
 
   ipcMain.on('terminal:write', (event, data) => {

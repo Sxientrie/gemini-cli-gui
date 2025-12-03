@@ -38,7 +38,9 @@ function App() {
         // Quote path to handle spaces
         window.electronAPI.writeToTerminal(`cd "${path}"\r`);
         window.electronAPI.writeToTerminal(`clear\r`); // Optional: clear screen for fresh start
-        window.electronAPI.writeToTerminal(`echo "Context switched to: ${path}"\r`);
+        window.electronAPI.writeToTerminal(
+          `echo "Context switched to: ${path}"\r`,
+        );
       }
     }
   };
@@ -78,7 +80,7 @@ function App() {
 
         {/* Terminal Area */}
         <div className="flex-1 p-1 bg-zinc-950">
-           <Terminal className="h-full w-full" />
+          <Terminal className="h-full w-full" />
         </div>
       </div>
     </div>

@@ -5,8 +5,8 @@
  */
 
 import * as pty from 'node-pty';
-import { platform } from 'os';
-import { BrowserWindow } from 'electron';
+import { platform } from 'node:os';
+import type { BrowserWindow } from 'electron';
 
 export class TerminalManager {
   private ptyProcess: pty.IPty | null = null;
@@ -18,7 +18,9 @@ export class TerminalManager {
 
   create(rows: number = 24, cols: number = 80, cwd: string = process.cwd()) {
     // Better logic: use process.env.SHELL or fallback.
-    const systemShell = process.env['SHELL'] || (platform() === 'win32' ? 'powershell.exe' : 'bash');
+    const systemShell =
+      process.env['SHELL'] ||
+      (platform() === 'win32' ? 'powershell.exe' : 'bash');
 
     try {
       this.ptyProcess = pty.spawn(systemShell, [], {

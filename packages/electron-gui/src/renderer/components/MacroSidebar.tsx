@@ -29,9 +29,15 @@ interface MacroSidebarProps {
 
 export function MacroSidebar({ onRunMacro }: MacroSidebarProps) {
   const macros = [
-    { label: 'Fix this bug', command: 'gemini "Fix the bug in the current file"' },
+    {
+      label: 'Fix this bug',
+      command: 'gemini "Fix the bug in the current file"',
+    },
     { label: 'Explain code', command: 'gemini "Explain this code"' },
-    { label: 'Generate Tests', command: 'gemini "Write unit tests for this file"' },
+    {
+      label: 'Generate Tests',
+      command: 'gemini "Write unit tests for this file"',
+    },
     { label: 'Refactor', command: 'gemini "Refactor this code to be cleaner"' },
     { label: 'Git Status', command: 'git status' },
     { label: 'List Files', command: 'ls -la' },
@@ -44,7 +50,9 @@ export function MacroSidebar({ onRunMacro }: MacroSidebarProps) {
       </h1>
 
       <div className="flex-1 overflow-y-auto space-y-1">
-        <div className="text-[10px] font-semibold text-zinc-600 mb-2 mt-2 px-3">MACROS</div>
+        <div className="text-[10px] font-semibold text-zinc-600 mb-2 mt-2 px-3">
+          MACROS
+        </div>
         {macros.map((macro, idx) => (
           <MacroButton
             key={idx}
