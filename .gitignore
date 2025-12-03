@@ -124,8 +124,8 @@ dist/
 Thumbs.db
 
 # User specific
-# /gemini-cli-main
+/gemini-cli-main
 *.txt
 vite.config.ts.timestamp*
-gemini-cli-main/
+
 .agent/

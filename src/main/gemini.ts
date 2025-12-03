@@ -1,5 +1,6 @@
 import { BrowserWindow, ipcMain, dialog } from 'electron';
 import { execa } from 'execa';
+import { createInterface } from 'node:readline';
 import { IPC_CHANNELS, type SendPromptPayload, type GeminiEvent } from '../shared/types';
 
 // gemini manager
@@ -10,7 +11,6 @@ export class GeminiManager {
   private window: BrowserWindow;
   private status: 'checking' | 'ready' | 'error' | 'active' = 'checking';
   private version: string | null = null;
-  private buffer: string = '';
 
   constructor(window: BrowserWindow) {
     this.window = window;
@@ -24,7 +24,9 @@ export class GeminiManager {
 
   private updateStatus(status: 'checking' | 'ready' | 'error' | 'active') {
     this.status = status;
-    this.window.webContents.send(IPC_CHANNELS.ON_STATUS_CHANGE, status);
+    if (!this.window.isDestroyed()) {
+      this.window.webContents.send(IPC_CHANNELS.ON_STATUS_CHANGE, status);
+    }
   }
 
   // checks if gemini is in the path.
@@ -39,12 +41,14 @@ export class GeminiManager {
     } catch (error) {
       console.warn('Gemini CLI not found:', error);
       this.updateStatus('error');
-      dialog.showMessageBox(this.window, {
-        type: 'warning',
-        title: 'Gemini CLI Not Found',
-        message: 'The `gemini` command was not found. Please ensure it is installed.',
-        buttons: ['OK'],
-      });
+      if (!this.window.isDestroyed()) {
+        dialog.showMessageBox(this.window, {
+          type: 'warning',
+          title: 'Gemini CLI Not Found',
+          message: 'The `gemini` command was not found. Please ensure it is installed.',
+          buttons: ['OK'],
+        });
+      }
       return false;
     }
   }
@@ -67,8 +71,29 @@ export class GeminiManager {
     this.updateStatus('ready');
 
     if (this.currentProcess.stdout) {
-      this.currentProcess.stdout.on('data', (chunk: Buffer) => {
-        this.handleStdoutData(chunk);
+      const rl = createInterface({
+        input: this.currentProcess.stdout,
+        crlfDelay: Infinity,
+      });
+
+      rl.on('line', (line) => {
+        if (line.trim()) {
+          try {
+            const event = JSON.parse(line) as GeminiEvent;
+            if (!this.window.isDestroyed()) {
+              this.window.webContents.send(IPC_CHANNELS.ON_STREAM_EVENT, event);
+            }
+            
+            if (event.type === 'result' || event.type === 'error') {
+               this.updateStatus('ready');
+            } else {
+               this.updateStatus('active');
+            }
+  
+          } catch (e) {
+            console.error('Failed to parse JSON line:', e, line);
+          }
+        }
       });
     }
 
@@ -83,32 +108,6 @@ export class GeminiManager {
       this.currentProcess = null;
       this.updateStatus('error');
     });
-  }
-
-  // parses ndjson output from the cli.
-  // buffers chunks to handle split lines.
-  private handleStdoutData(chunk: Buffer) {
-    this.buffer += chunk.toString();
-    const lines = this.buffer.split('\n');
-    this.buffer = lines.pop() || '';
-
-    for (const line of lines) {
-      if (line.trim()) {
-        try {
-          const event = JSON.parse(line) as GeminiEvent;
-          this.window.webContents.send(IPC_CHANNELS.ON_STREAM_EVENT, event);
-          
-          if (event.type === 'result' || event.type === 'error') {
-             this.updateStatus('ready');
-          } else {
-             this.updateStatus('active');
-          }
-
-        } catch (e) {
-          console.error('Failed to parse JSON line:', e, line);
-        }
-      }
-    }
   }
 
   private registerHandlers() {
@@ -149,9 +148,11 @@ export class GeminiManager {
       this.updateStatus('active');
       this.currentProcess.stdin.write(payload.prompt + '\n');
     } else {
-      this.window.webContents.send(IPC_CHANNELS.ON_ERROR, {
-        message: 'Gemini CLI process is not running',
-      });
+      if (!this.window.isDestroyed()) {
+        this.window.webContents.send(IPC_CHANNELS.ON_ERROR, {
+          message: 'Gemini CLI process is not running',
+        });
+      }
     }
   }
 
@@ -192,7 +193,9 @@ export class GeminiManager {
         })
         .filter(Boolean);
 
-      this.window.webContents.send(IPC_CHANNELS.ON_SESSIONS, sessions);
+      if (!this.window.isDestroyed()) {
+        this.window.webContents.send(IPC_CHANNELS.ON_SESSIONS, sessions);
+      }
     } catch (error) {
       console.error('Failed to list sessions', error);
     }
