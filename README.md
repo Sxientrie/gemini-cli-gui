@@ -1,59 +1,52 @@
-## gemini-cli-gui
+# gemini electron-gui
 
-This is a fork of the official [**Google Gemini CLI**](https://github.com/google-gemini/gemini-cli).
+gui for the gemini cli.
+sidecar, not a wrapper. manages the `gemini` process, streams json output, renders it.
 
-The goal of this project is to give the agent a proper gui.
+## stack
 
-The original CLI is a great tool, but sometimes you don't want to stare at a terminal window. You want actual UI elements. You want a button to click, a settings menu to toggle, and a proper diff view that doesn't rely on ASCII characters.
+- **electron**: the shell.
+- **react**: view layer.
+- **tailwind**: styling.
+- **execa**: process management.
 
-This project wraps the powerful logic of the Gemini agent in a modern Electron interface, giving you the best of both worlds: Google's reasoning engine with a user experience that feels like a real desktop application.
+## setup
 
-### How it Works
+needs the cli installed globally.
 
-We use what we call a "Headless Core" architecture.
+```
+npm install -g @google/gemini-cli@latest
+```
 
-The repository is set up as a monorepo. We intentionally treat the original Google code as a library so we don't break the logic.
+then grab deps here.
 
-* **packages/core**: This is the brain. It handles the agents, tools, and context management. We keep this identical to the upstream repo.
-* **packages/cli**: The original terminal interface. It's still here if you need it.
-* **packages/electron-gui**: This is the new face. It's a React + Tailwind application running inside Electron that imports the Core directly.
+```
+npm install
+```
 
-When you run this app, you aren't just running a web wrapper. The Electron main process actually spins up the Gemini agent directly from the core package.
+## running
 
-### Getting Started
+dev mode.
 
-Because this is a monorepo with shared dependencies, there is a specific order to get things running.
+```
+npm run electron:dev
+```
 
-1.  **Install Dependencies**
-    Grab all the node modules for the workspace.
-    ```
-    npm install
-    ```
+```
+npm run electron:build
+```
 
-2.  **Build the Core**
-    We need to compile the TypeScript in the core package first so the Electron app can consume it.
-    ```
-    npm run build --workspace=packages/core
-    ```
+## architecture
 
-3.  **Run the GUI**
-    Start the Electron development server.
-    ```
-    npm run dev --workspace=packages/electron-gui
-    ```
+main process (src/main) finds `gemini` binary, spawns it, pipes stdio.
+renderer (src/renderer) gets json over ipc, renders it. logic stays in the main process where possible.
 
-### Development
+design is neutral. bento layout.
 
-If you want to change how the application looks or feels, you'll spend most of your time in `packages/electron-gui`. We use Vite, so changes to the React components will hot-reload instantly.
+## troubleshooting
 
-If you want to change how the agent thinks or add new tools, you will need to work in `packages/core`. Just remember that if you change the core logic, you have to rebuild that package before the UI will pick up the changes.
+if "gemini command not found", check the system path. npm globals location varies.
 
-### Relationship to Upstream
+```
 
-We track the official [`google-gemini/gemini-cli`](https://github.com/google-gemini/gemini-cli). repository.
-
-The strategy is to keep the `core` package as clean as possible. This ensures that when Google releases a smarter model or a new reasoning capability, we can merge it in and immediately expose it in the GUI without painful merge conflicts.
-
-## License
-
-Apache 2.0 same as upstream
+```
