@@ -1,7 +1,7 @@
 import React from 'react';
 import { Loader2, AlertTriangle, RefreshCw } from 'lucide-react';
 import clsx from 'clsx';
-import { GeminiStatus } from '../../shared/types';
+import { GeminiStatus, AppError, AppErrorCode } from '../../shared/types';
 
 // startup modal component
 // displays initialization status and errors.
@@ -9,9 +9,10 @@ import { GeminiStatus } from '../../shared/types';
 interface StartupModalProps {
   status: GeminiStatus;
   version: string | null;
+  error: AppError | null;
 }
 
-export function StartupModal({ status, version }: StartupModalProps) {
+export function StartupModal({ status, version, error }: StartupModalProps) {
   // don't render anything if we are ready or active
   if (status === 'ready' || status === 'active') return null;
 
@@ -44,12 +45,17 @@ export function StartupModal({ status, version }: StartupModalProps) {
         {/* text content */}
         <div className="space-y-2">
           <h1 className="text-xl font-medium tracking-tight text-zinc-200">
-            {status === 'checking' ? 'Initializing...' : 'Connection Failed'}
+            {status === 'checking' ? 'Initializing...' : (
+              error?.code === AppErrorCode.AUTH_FAILED ? 'Authentication Failed' :
+              error?.code === AppErrorCode.CLI_NOT_FOUND ? 'CLI Not Found' :
+              error?.code === AppErrorCode.RATE_LIMITED ? 'Rate Limited' :
+              'Connection Failed'
+            )}
           </h1>
           <p className="text-zinc-500 text-sm">
             {status === 'checking' 
               ? 'Verifying Gemini CLI installation and environment configuration.' 
-              : 'The Gemini CLI could not be found or failed to start.'}
+              : (error?.message || 'The Gemini CLI could not be found or failed to start.')}
           </p>
           {version && (
              <p className="text-xs font-mono text-zinc-600 pt-2">
@@ -61,9 +67,11 @@ export function StartupModal({ status, version }: StartupModalProps) {
         {/* actions */}
         {status === 'error' && (
           <div className="pt-4">
-             <p className="text-xs text-zinc-600 mb-4 bg-zinc-900/50 p-3 rounded border border-zinc-800 font-mono">
-                npm install -g @google/gemini-cli
-             </p>
+             {error?.code === AppErrorCode.CLI_NOT_FOUND && (
+               <p className="text-xs text-zinc-600 mb-4 bg-zinc-900/50 p-3 rounded border border-zinc-800 font-mono">
+                  npm install -g @google/gemini-cli
+               </p>
+             )}
              <button 
                onClick={() => window.location.reload()}
                className="flex items-center gap-2 px-4 py-2 bg-zinc-100 text-zinc-900 rounded-lg hover:bg-zinc-200 transition-colors font-medium text-sm"

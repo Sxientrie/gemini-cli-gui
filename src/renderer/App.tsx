@@ -20,7 +20,7 @@ function App() {
 
   return (
     <div className="flex h-screen w-screen bg-background text-zinc-200 overflow-hidden font-sans selection:bg-zinc-700 selection:text-zinc-200 p-2 gap-1 text-xs">
-      <StartupModal status={status} version={version} />
+      <StartupModal status={status} version={version} error={error} />
       {/* navigation island */}
       <nav className="w-12 flex flex-col items-center py-3 gap-3 bg-surface backdrop-blur-md border border-border rounded-lg z-50 shadow-lg">
         <div className="w-8 h-8 rounded-md bg-zinc-200 flex items-center justify-center mb-2 shadow-[0_0_15px_rgba(255,255,255,0.1)]">

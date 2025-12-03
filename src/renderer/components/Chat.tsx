@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Send, StopCircle, Terminal } from 'lucide-react';
 import { MessageBubble } from './MessageBubble';
 import type { ChatMessage } from '../hooks/useGemini';
+import type { AppError } from '../../shared/types';
 
 // chat component
 // renders the message history and input area.
@@ -11,7 +12,7 @@ interface ChatProps {
   isGenerating: boolean;
   sendPrompt: (prompt: string) => void;
   stopGeneration: () => void;
-  error: string | null;
+  error: AppError | null;
 }
 
 export function Chat({ messages, isGenerating, sendPrompt, stopGeneration, error }: ChatProps) {
@@ -57,7 +58,7 @@ export function Chat({ messages, isGenerating, sendPrompt, stopGeneration, error
         
         {error && (
           <div className="p-4 mx-4 my-2 bg-red-900/20 border border-red-900/50 rounded-lg text-red-400 text-sm">
-            Error: {error}
+            Error: {error.message}
           </div>
         )}
         <div ref={messagesEndRef} />

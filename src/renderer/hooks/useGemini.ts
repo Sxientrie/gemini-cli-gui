@@ -5,7 +5,9 @@ import type {
   GeminiToolResult,
   GeminiSession,
   GeminiStatus,
+  AppError,
 } from '../../shared/types';
+import { AppErrorCode } from '../../shared/types';
 
 // use gemini hook
 // manages chat state, ipc communication, and session logic.
@@ -25,7 +27,7 @@ export function useGemini() {
   const [sessionId, setSessionId] = useState<string | undefined>(undefined);
   const [sessions, setSessions] = useState<GeminiSession[]>([]);
   const [cwd, setCwd] = useState<string | undefined>(undefined);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<AppError | null>(null);
   const [status, setStatus] = useState<GeminiStatus>('checking');
   const [version, setVersion] = useState<string | null>(null);
 
@@ -95,7 +97,11 @@ export function useGemini() {
         });
       } else if (event.type === 'error') {
         setIsGenerating(false);
-        setError(event.message);
+        setError({
+          code: AppErrorCode.UNKNOWN,
+          message: event.message,
+          details: event.code
+        });
         setMessages((prev) => {
           const lastMsg = prev[prev.length - 1];
           if (lastMsg && lastMsg.role === 'model' && lastMsg.isThinking) {
@@ -114,9 +120,9 @@ export function useGemini() {
       setSessions(newSessions);
     });
 
-    const removeErrorListener = window.api.onError((err) => {
+    const removeErrorListener = window.api.onError((err: AppError) => {
       setIsGenerating(false);
-      setError(err.message || 'Unknown error');
+      setError(err);
     });
 
     const removeStatusListener = window.api.onStatusChange((newStatus: GeminiStatus) => {

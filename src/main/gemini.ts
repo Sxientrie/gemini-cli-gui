@@ -1,7 +1,7 @@
 import { BrowserWindow, ipcMain, dialog } from 'electron';
 import { execa } from 'execa';
 import { createInterface } from 'node:readline';
-import { IPC_CHANNELS, type SendPromptPayload, type GeminiEvent } from '../shared/types';
+import { IPC_CHANNELS, type SendPromptPayload, type GeminiEvent, AppErrorCode, type AppError } from '../shared/types';
 
 // gemini manager
 // handles the persistent cli process, streams output, manages lifecycle.
@@ -29,6 +29,28 @@ export class GeminiManager {
     }
   }
 
+  private sanitizeError(raw: string): AppError {
+    if (/authentication failed|login required|credentials/i.test(raw)) {
+      return { 
+        code: AppErrorCode.AUTH_FAILED, 
+        message: 'Authentication failed. Please login again.', 
+        details: raw 
+      };
+    }
+    if (/rate limit|quota exceeded|429/i.test(raw)) {
+      return { 
+        code: AppErrorCode.RATE_LIMITED, 
+        message: 'Rate limit exceeded. Please try again later.', 
+        details: raw 
+      };
+    }
+    return { 
+      code: AppErrorCode.UNKNOWN, 
+      message: 'An unexpected error occurred.', 
+      details: raw 
+    };
+  }
+
   // checks if gemini is in the path.
   async checkCli() {
     this.updateStatus('checking');
@@ -42,12 +64,12 @@ export class GeminiManager {
       console.warn('Gemini CLI not found:', error);
       this.updateStatus('error');
       if (!this.window.isDestroyed()) {
-        dialog.showMessageBox(this.window, {
-          type: 'warning',
-          title: 'Gemini CLI Not Found',
+        const appError: AppError = {
+          code: AppErrorCode.CLI_NOT_FOUND,
           message: 'The `gemini` command was not found. Please ensure it is installed.',
-          buttons: ['OK'],
-        });
+          details: String(error)
+        };
+        this.window.webContents.send(IPC_CHANNELS.ON_ERROR, appError);
       }
       return false;
     }
@@ -99,7 +121,12 @@ export class GeminiManager {
 
     if (this.currentProcess.stderr) {
       this.currentProcess.stderr.on('data', (chunk: Buffer) => {
-        console.error('Gemini CLI Stderr:', chunk.toString());
+        const raw = chunk.toString();
+        console.error('Gemini CLI Stderr:', raw);
+        if (!this.window.isDestroyed()) {
+          const error = this.sanitizeError(raw);
+          this.window.webContents.send(IPC_CHANNELS.ON_ERROR, error);
+        }
       });
     }
 
@@ -149,9 +176,11 @@ export class GeminiManager {
       this.currentProcess.stdin.write(payload.prompt + '\n');
     } else {
       if (!this.window.isDestroyed()) {
-        this.window.webContents.send(IPC_CHANNELS.ON_ERROR, {
+        const error: AppError = {
+          code: AppErrorCode.UNKNOWN,
           message: 'Gemini CLI process is not running',
-        });
+        };
+        this.window.webContents.send(IPC_CHANNELS.ON_ERROR, error);
       }
     }
   }

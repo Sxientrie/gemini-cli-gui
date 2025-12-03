@@ -113,6 +113,19 @@ export const IPC_CHANNELS = {
 
 export type GeminiStatus = 'checking' | 'ready' | 'error' | 'active';
 
+export enum AppErrorCode {
+  CLI_NOT_FOUND = 'CLI_NOT_FOUND',
+  AUTH_FAILED = 'AUTH_FAILED',
+  RATE_LIMITED = 'RATE_LIMITED',
+  UNKNOWN = 'UNKNOWN',
+}
+
+export interface AppError {
+  code: AppErrorCode;
+  message: string;
+  details?: string;
+}
+
 export interface SendPromptPayload {
   prompt: string;
   sessionId?: string;
