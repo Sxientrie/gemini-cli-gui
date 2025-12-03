@@ -5,11 +5,11 @@
   "main": "dist-electron/main/index.js",
   "description": "Electron GUI for Gemini CLI",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc && vite build",
-    "preview": "vite preview",
-    "electron:dev": "vite",
-    "electron:build": "vite build && electron-builder"
+    "dev": "npm run build --prefix ../core && vite",
+    "build": "npm run build --prefix ../core && tsc && vite build",
+    "preview": "npm run build --prefix ../core && vite preview",
+    "electron:dev": "npm run build --prefix ../core && vite",
+    "electron:build": "npm run build --prefix ../core && vite build && electron-builder"
   },
   "dependencies": {
     "@google/gemini-cli-core": "0.20.0-nightly.20251201.2fe609cb6",
