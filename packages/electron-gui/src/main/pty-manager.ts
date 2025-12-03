@@ -9,7 +9,7 @@ import { EventEmitter } from 'node:events';
 import type { IPty } from 'node-pty';
 
 const require = createRequire(import.meta.url);
-// eslint-disable-next-line @typescript-eslint/no-var-requires
+// eslint-disable-next-line no-restricted-syntax
 const pty = require('node-pty');
 
 export class PtyManager extends EventEmitter {
@@ -53,7 +53,7 @@ export class PtyManager extends EventEmitter {
         cols: 80,
         rows: 24,
         cwd: process.cwd(),
-        env: env,
+        env,
       });
 
       this.ptyProcess!.onData((data: string) => {
