@@ -1,134 +1,109 @@
-import { app, BrowserWindow, ipcMain } from "electron";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
-import { GeminiEventType, executeToolCall, Config } from "@google/gemini-cli-core";
-async function createConfig() {
-  const cwd = process.cwd();
-  const config2 = new Config({
-    sessionId: "electron-session-" + Date.now(),
-    targetDir: cwd,
-    debugMode: true,
-    model: "gemini-2.0-flash-001",
-    cwd
-  });
-  await config2.initialize();
-  return config2;
-}
-let config = null;
-let client = null;
-async function handleAgentMessage(message, webContents) {
-  try {
-    if (!config) {
-      config = await createConfig();
-    }
-    if (!client) {
-      client = config.getGeminiClient();
-    }
-    const abortController = new AbortController();
-    const promptId = "prompt-" + Date.now();
-    const parts = [{ text: message }];
-    const responseStream = client.sendMessageStream(
-      parts,
-      abortController.signal,
-      promptId
-    );
-    for await (const event of responseStream) {
-      if (event.type === GeminiEventType.Content) {
-        if (event.value) {
-          webContents.send("agent-response", event.value);
-        }
-      } else if (event.type === GeminiEventType.ToolCallRequest) {
-        const requestInfo = event.value;
-        webContents.send(
-          "agent-response",
-          `
-[Tool Call: ${requestInfo.name}]
-`
-        );
+import { app as r, BrowserWindow as h, ipcMain as p } from "electron";
+import { dirname as u, join as l } from "node:path";
+import { fileURLToPath as g } from "node:url";
+import { createRequire as P } from "node:module";
+import { EventEmitter as f } from "node:events";
+const c = P(import.meta.url), y = c("node-pty");
+class v extends f {
+  ptyProcess = null;
+  constructor() {
+    super();
+  }
+  spawn() {
+    if (!this.ptyProcess)
+      try {
+        let e;
         try {
-          const completedToolCall = await executeToolCall(
-            config,
-            requestInfo,
-            abortController.signal
-          );
-          webContents.send(
-            "agent-response",
-            `
-[Tool Result: ${JSON.stringify(completedToolCall.response.resultDisplay)}]
-`
-          );
-        } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : String(error);
-          webContents.send(
-            "agent-response",
-            `
-[Tool Error: ${errorMessage}]
-`
-          );
+          e = c.resolve("@google/gemini-cli/bundle/gemini.js");
+        } catch {
+          try {
+            e = c.resolve("@google/gemini-cli");
+          } catch (i) {
+            console.error("Could not resolve @google/gemini-cli", i);
+            return;
+          }
         }
-      } else if (event.type === GeminiEventType.Error) {
-        webContents.send(
-          "agent-response",
-          `
-Error: ${event.value.error.message}
-`
+        const n = {
+          ...process.env,
+          FORCE_COLOR: "1"
+        };
+        console.log("Spawning PTY with CLI path:", e), this.ptyProcess = y.spawn("node", [e, "chat"], {
+          name: "xterm-256color",
+          cols: 80,
+          rows: 24,
+          cwd: process.cwd(),
+          env: n
+        }), this.ptyProcess.onData((i) => {
+          this.emit("data", i);
+        }), this.ptyProcess.onExit(
+          ({ exitCode: i, signal: a }) => {
+            console.log(`PTY process exited with code ${i} signal ${a}`), this.ptyProcess = null, this.emit("exit", { exitCode: i, signal: a });
+          }
         );
+      } catch (e) {
+        console.error("Failed to spawn PTY:", e);
       }
-    }
-  } catch (e) {
-    console.error(e);
-    const errorMessage = e instanceof Error ? e.message : String(e);
-    webContents.send("agent-response", `Error: ${errorMessage}`);
+  }
+  write(e) {
+    this.ptyProcess && this.ptyProcess.write(e);
+  }
+  resize(e, n) {
+    if (this.ptyProcess)
+      try {
+        this.ptyProcess.resize(e, n);
+      } catch (i) {
+        console.error("Error resizing PTY:", i);
+      }
+  }
+  kill() {
+    this.ptyProcess && (this.ptyProcess.kill(), this.ptyProcess = null);
   }
 }
-const __filename$1 = fileURLToPath(import.meta.url);
-const __dirname$1 = dirname(__filename$1);
-process.env["DIST"] = join(__dirname$1, "../../dist");
-process.env["VITE_PUBLIC"] = app.isPackaged ? process.env["DIST"] : join(process.env["DIST"], "../public");
-let win;
-const VITE_DEV_SERVER_URL = process.env["VITE_DEV_SERVER_URL"];
-function createWindow() {
-  win = new BrowserWindow({
+const E = g(import.meta.url), m = u(E);
+process.env.DIST = l(m, "../../dist");
+process.env.VITE_PUBLIC = r.isPackaged ? process.env.DIST : l(process.env.DIST, "../public");
+let o, t = null;
+const d = process.env.VITE_DEV_SERVER_URL;
+function w() {
+  if (o = new h({
     width: 1200,
     height: 800,
     backgroundColor: "#09090b",
     webPreferences: {
-      preload: join(__dirname$1, "../preload/index.js"),
-      contextIsolation: true,
-      nodeIntegration: false
+      preload: l(m, "../preload/index.js"),
+      contextIsolation: !0,
+      nodeIntegration: !1
     },
     titleBarStyle: "hiddenInset",
-    autoHideMenuBar: true
-  });
-  win.webContents.on("did-finish-load", () => {
-    win?.webContents.send(
+    autoHideMenuBar: !0
+  }), o.webContents.on("did-finish-load", () => {
+    o?.webContents.send(
       "main-process-message",
       (/* @__PURE__ */ new Date()).toLocaleString()
     );
-  });
-  if (VITE_DEV_SERVER_URL) {
-    win.loadURL(VITE_DEV_SERVER_URL);
-  } else {
-    const dist = process.env["DIST"] || "";
-    win.loadFile(join(dist, "index.html"));
+  }), d)
+    o.loadURL(d);
+  else {
+    const s = process.env.DIST || "";
+    o.loadFile(l(s, "index.html"));
   }
 }
-app.on("window-all-closed", () => {
-  win = null;
-  if (process.platform !== "darwin") {
-    app.quit();
-  }
+r.on("window-all-closed", () => {
+  t && t.kill(), o = null, process.platform !== "darwin" && r.quit();
 });
-app.on("activate", () => {
-  if (BrowserWindow.getAllWindows().length === 0) {
-    createWindow();
-  }
+r.on("activate", () => {
+  h.getAllWindows().length === 0 && w();
 });
-app.whenReady().then(() => {
-  createWindow();
-  ipcMain.handle("chat-message", async (event, message) => {
-    if (win) {
-      await handleAgentMessage(message, win.webContents);
-    }
+r.whenReady().then(() => {
+  w(), t = new v(), t.spawn(), t.on("data", (s) => {
+    o && o.webContents.send("terminal:output", s);
+  }), t.on("exit", ({ exitCode: s }) => {
+    console.log("PTY exited", s), o && o.webContents.send("terminal:output", `
+[Process exited with code ${s}]
+`);
+  }), p.handle("terminal:input", (s, e) => {
+    t && t.write(e);
+  }), p.handle("terminal:resize", (s, e, n) => {
+    t && t.resize(e, n);
   });
 });

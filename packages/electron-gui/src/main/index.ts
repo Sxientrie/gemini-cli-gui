@@ -7,7 +7,7 @@
 import { app, BrowserWindow, ipcMain } from 'electron';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { handleAgentMessage } from './agent-handler.js';
+import { PtyManager } from './pty-manager.js';
 
 // ESM helpers
 const __filename = fileURLToPath(import.meta.url);
@@ -29,6 +29,7 @@ process.env['VITE_PUBLIC'] = app.isPackaged
   : join(process.env['DIST'], '../public');
 
 let win: BrowserWindow | null;
+let ptyManager: PtyManager | null = null;
 
 // 🚧 Use ['ENV_NAME'] avoid vite:define plugin - Vite@2.x
 const VITE_DEV_SERVER_URL = process.env['VITE_DEV_SERVER_URL'];
@@ -65,6 +66,9 @@ function createWindow() {
 }
 
 app.on('window-all-closed', () => {
+  if (ptyManager) {
+    ptyManager.kill();
+  }
   win = null;
   if (process.platform !== 'darwin') {
     app.quit();
@@ -80,9 +84,31 @@ app.on('activate', () => {
 app.whenReady().then(() => {
   createWindow();
 
-  ipcMain.handle('chat-message', async (event, message) => {
+  ptyManager = new PtyManager();
+  ptyManager.spawn();
+
+  ptyManager.on('data', (data: string) => {
     if (win) {
-      await handleAgentMessage(message, win.webContents);
+      win.webContents.send('terminal:output', data);
+    }
+  });
+
+  ptyManager.on('exit', ({ exitCode }: { exitCode: number }) => {
+    console.log('PTY exited', exitCode);
+    if (win) {
+      win.webContents.send('terminal:output', `\n[Process exited with code ${exitCode}]\n`);
+    }
+  });
+
+  ipcMain.handle('terminal:input', (event, data: string) => {
+    if (ptyManager) {
+      ptyManager.write(data);
+    }
+  });
+
+  ipcMain.handle('terminal:resize', (event, cols: number, rows: number) => {
+    if (ptyManager) {
+      ptyManager.resize(cols, rows);
     }
   });
 });

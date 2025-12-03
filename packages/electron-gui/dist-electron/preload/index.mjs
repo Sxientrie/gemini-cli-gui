@@ -1,12 +1,1 @@
-"use strict";
-const electron = require("electron");
-electron.contextBridge.exposeInMainWorld("electronAPI", {
-  sendMessage: (message) => electron.ipcRenderer.invoke("chat-message", message),
-  onResponse: (callback) => {
-    const subscription = (_event, response) => callback(response);
-    electron.ipcRenderer.on("agent-response", subscription);
-    return () => {
-      electron.ipcRenderer.removeListener("agent-response", subscription);
-    };
-  }
-});
+"use strict";const n=require("electron");n.contextBridge.exposeInMainWorld("electronAPI",{sendInput:e=>n.ipcRenderer.invoke("terminal:input",e),resizeTerminal:(e,r)=>n.ipcRenderer.invoke("terminal:resize",e,r),onTerminalData:e=>{const r=(i,t)=>e(t);return n.ipcRenderer.on("terminal:output",r),()=>{n.ipcRenderer.removeListener("terminal:output",r)}}});
