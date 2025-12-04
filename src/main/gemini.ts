@@ -1,26 +1,31 @@
 import { BrowserWindow, ipcMain, dialog } from 'electron';
-import { execa } from 'execa';
-import { createInterface } from 'node:readline';
+import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
+import { promisify } from 'node:util';
+import { exec } from 'node:child_process';
+import readline from 'node:readline';
 import { IPC_CHANNELS, type SendPromptPayload, type GeminiEvent, AppErrorCode, type AppError } from '../shared/types';
+import { getApiKey } from './auth';
+
+const execAsync = promisify(exec);
 
 // gemini manager
-// handles the persistent cli process, streams output, manages lifecycle.
+// manages a persistent cli process that stays alive for the entire session.
+// spawns once in interactive mode, sends prompts via stdin.
 
 export class GeminiManager {
-  private currentProcess: ReturnType<typeof execa> | null = null;
+  private persistentProcess: ChildProcessWithoutNullStreams | null = null;
   private window: BrowserWindow;
   private status: 'checking' | 'ready' | 'error' | 'active' = 'checking';
   private version: string | null = null;
+  private isProcessing = false;
 
   constructor(window: BrowserWindow) {
     this.window = window;
     this.registerHandlers();
-    this.checkCli().then((found) => {
-      if (found) {
-        this.startPersistentProcess();
-      }
-    });
+    this.checkCli();
   }
+
+  // state management
 
   private updateStatus(status: 'checking' | 'ready' | 'error' | 'active') {
     this.status = status;
@@ -30,7 +35,7 @@ export class GeminiManager {
   }
 
   private sanitizeError(raw: string): AppError {
-    if (/authentication failed|login required|credentials/i.test(raw)) {
+    if (/authentication failed|login required|invalid credentials|credential.*fail/i.test(raw)) {
       return { 
         code: AppErrorCode.AUTH_FAILED, 
         message: 'Authentication failed. Please login again.', 
@@ -51,17 +56,22 @@ export class GeminiManager {
     };
   }
 
-  // checks if gemini is in the path.
+  // cli initialization
+
   async checkCli() {
     this.updateStatus('checking');
     try {
-      const { stdout } = await execa('gemini', ['--version'], { preferLocal: true });
+      const { stdout } = await execAsync('gemini --version');
       this.version = stdout.trim();
-      console.log('Gemini CLI found:', this.version);
+      console.log('[GeminiManager] Gemini CLI found:', this.version);
+      
+      // start persistent process immediately
+      await this.startPersistentCli();
+      
       this.updateStatus('ready');
       return true;
     } catch (error) {
-      console.warn('Gemini CLI not found:', error);
+      console.warn('[GeminiManager] Gemini CLI not found:', error);
       this.updateStatus('error');
       if (!this.window.isDestroyed()) {
         const appError: AppError = {
@@ -75,67 +85,158 @@ export class GeminiManager {
     }
   }
 
-  // spawns the cli in persistent mode.
-  // uses stream-json output format to pipe events back to renderer.
-  private startPersistentProcess() {
-    if (this.currentProcess) {
-      this.kill();
-    }
-
-    this.currentProcess = execa('gemini', ['--output-format', 'stream-json'], {
-      preferLocal: true,
-      reject: false,
-      stdin: 'pipe',
-      stdout: 'pipe',
-      stderr: 'pipe',
+  private async startPersistentCli() {
+    console.log('[GeminiManager] Starting persistent CLI in interactive mode...');
+    
+    // spawn gemini in interactive mode with no output format (default interactive)
+    // the cli will stay alive and accept prompts via stdin
+    this.persistentProcess = spawn('gemini', [], {
+      stdio: ['pipe', 'pipe', 'pipe'],
+      shell: true,
+      env: {
+        ...process.env,
+        // don't pass API key - let CLI use its own credentials
+        PYTHONUNBUFFERED: '1',
+        NO_COLOR: '1',
+      },
     });
 
-    this.updateStatus('ready');
+    // setup readline to process output line-by-line
+    const rl = readline.createInterface({
+      input: this.persistentProcess.stdout,
+      terminal: false,
+    });
 
-    if (this.currentProcess.stdout) {
-      const rl = createInterface({
-        input: this.currentProcess.stdout,
-        crlfDelay: Infinity,
-      });
+    rl.on('line', (line: string) => {
+      // in interactive mode, the CLI outputs plain text, not JSONL
+      // we need to detect when it's ready and when responses complete
+      
+      const trimmed = line.trim();
+      if (!trimmed) return;
 
-      rl.on('line', (line) => {
-        if (line.trim()) {
-          try {
-            const event = JSON.parse(line) as GeminiEvent;
-            if (!this.window.isDestroyed()) {
-              this.window.webContents.send(IPC_CHANNELS.ON_STREAM_EVENT, event);
-            }
-            
-            if (event.type === 'result' || event.type === 'error') {
-               this.updateStatus('ready');
-            } else {
-               this.updateStatus('active');
-            }
-  
-          } catch (e) {
-            console.error('Failed to parse JSON line:', e, line);
-          }
+      console.log('[GeminiManager] CLI Output:', trimmed);
+
+      // detect when cli is ready for input
+      if (trimmed.includes('>') || trimmed.toLowerCase().includes('gemini')) {
+        if (!this.isProcessing) {
+          console.log('[GeminiManager] CLI is ready for prompts');
         }
-      });
-    }
+        return;
+      }
 
-    if (this.currentProcess.stderr) {
-      this.currentProcess.stderr.on('data', (chunk: Buffer) => {
-        const raw = chunk.toString();
-        console.error('Gemini CLI Stderr:', raw);
-        if (!this.window.isDestroyed()) {
-          const error = this.sanitizeError(raw);
-          this.window.webContents.send(IPC_CHANNELS.ON_ERROR, error);
-        }
-      });
-    }
+      // stream the text back to renderer
+      if (this.isProcessing && !this.window.isDestroyed()) {
+        const geminiEvent: GeminiEvent = {
+          type: 'message',
+          role: 'model',
+          content: trimmed + '\n',
+          timestamp: new Date().toISOString(),
+        };
+        this.window.webContents.send(IPC_CHANNELS.ON_STREAM_EVENT, geminiEvent);
+      }
+    });
 
-    this.currentProcess.on('exit', (code: number | null) => {
-      console.log(`Gemini CLI exited with code ${code}`);
-      this.currentProcess = null;
+    this.persistentProcess.stderr.on('data', (chunk: Buffer) => {
+      const raw = chunk.toString();
+      console.log('[GeminiManager] CLI Stderr:', raw);
+      
+      // ignore informational messages
+      if (/Loaded cached credentials|This warning will not show up/i.test(raw)) {
+        return;
+      }
+    });
+
+    this.persistentProcess.on('exit', (code: number | null) => {
+      console.log('[GeminiManager] Persistent CLI exited with code', code);
+      this.persistentProcess = null;
       this.updateStatus('error');
     });
+
+    this.persistentProcess.on('error', (err: Error) => {
+      console.error('[GeminiManager] Persistent CLI error:', err);
+      this.persistentProcess = null;
+      this.updateStatus('error');
+    });
+
+    console.log('[GeminiManager] Persistent CLI started successfully');
   }
+
+  // prompt handling
+
+  async sendPrompt(payload: SendPromptPayload) {
+    if (!this.persistentProcess || !this.persistentProcess.stdin) {
+      console.error('[GeminiManager] Persistent CLI not running!');
+      if (!this.window.isDestroyed()) {
+        const error: AppError = {
+          code: AppErrorCode.UNKNOWN,
+          message: 'CLI process not available. Please restart the application.',
+        };
+        this.window.webContents.send(IPC_CHANNELS.ON_ERROR, error);
+      }
+      return;
+    }
+
+    if (this.isProcessing) {
+      console.log('[GeminiManager] A request is already in progress');
+      return;
+    }
+
+    this.isProcessing = true;
+    this.updateStatus('active');
+
+    console.log('[GeminiManager] Sending prompt to persistent CLI:', payload.prompt.substring(0, 50));
+    
+    // write prompt to stdin
+    try {
+      this.persistentProcess.stdin.write(payload.prompt + '\n');
+    } catch (error) {
+      console.error('[GeminiManager] Failed to write to stdin:', error);
+      this.isProcessing = false;
+      this.updateStatus('ready');
+    }
+
+    // we'll detect completion based on CLI output patterns
+    // for now, auto-reset after a timeout
+    setTimeout(() => {
+      if (this.isProcessing) {
+        this.isProcessing = false;
+        this.updateStatus('ready');
+        
+        if (!this.window.isDestroyed()) {
+          const geminiEvent: GeminiEvent = {
+            type: 'result',
+            status: 'success',
+          };
+          this.window.webContents.send(IPC_CHANNELS.ON_STREAM_EVENT, geminiEvent);
+        }
+      }
+    }, 30000); // 30 second timeout
+  }
+
+  stopGeneration() {
+    if (this.persistentProcess && this.persistentProcess.stdin) {
+      // send Ctrl+C to interrupt
+      this.persistentProcess.stdin.write('\x03');
+      this.isProcessing = false;
+      this.updateStatus('ready');
+    }
+  }
+
+  async listSessions() {
+    console.log('[GeminiManager] listSessions called');
+    if (!this.window.isDestroyed()) {
+      this.window.webContents.send(IPC_CHANNELS.ON_SESSIONS, []);
+    }
+  }
+
+  kill() {
+    if (this.persistentProcess) {
+      this.persistentProcess.kill('SIGTERM');
+      this.persistentProcess = null;
+    }
+  }
+
+  // ipc handlers
 
   private registerHandlers() {
     ipcMain.on(IPC_CHANNELS.SEND_PROMPT, (_, payload: SendPromptPayload) => {
@@ -164,69 +265,5 @@ export class GeminiManager {
     ipcMain.handle(IPC_CHANNELS.GET_VERSION, () => {
       return this.version;
     });
-  }
-
-  sendPrompt(payload: SendPromptPayload) {
-    if (!this.currentProcess) {
-      this.startPersistentProcess();
-    }
-
-    if (this.currentProcess && this.currentProcess.stdin) {
-      this.updateStatus('active');
-      this.currentProcess.stdin.write(payload.prompt + '\n');
-    } else {
-      if (!this.window.isDestroyed()) {
-        const error: AppError = {
-          code: AppErrorCode.UNKNOWN,
-          message: 'Gemini CLI process is not running',
-        };
-        this.window.webContents.send(IPC_CHANNELS.ON_ERROR, error);
-      }
-    }
-  }
-
-  stopGeneration() {
-    // restart process to kill current generation.
-    this.startPersistentProcess();
-  }
-
-  kill() {
-    if (this.currentProcess) {
-      this.currentProcess.kill();
-      this.currentProcess = null;
-      this.updateStatus('ready');
-    }
-  }
-
-  async listSessions() {
-    try {
-      const { stdout } = await execa('gemini', [
-        '--list-sessions',
-      ], { preferLocal: true });
-
-      const sessions = stdout
-        .split('\n')
-        .map(line => line.trim())
-        .filter(line => line.match(/^\d+\./))
-        .map(line => {
-          const match = line.match(/^\d+\.\s+(.+)\s+\((.+?)\)\s+\[([a-f0-9-]+)\]$/);
-          if (match) {
-            return {
-              title: match[1],
-              lastActive: match[2],
-              id: match[3],
-              preview: match[1],
-            };
-          }
-          return null;
-        })
-        .filter(Boolean);
-
-      if (!this.window.isDestroyed()) {
-        this.window.webContents.send(IPC_CHANNELS.ON_SESSIONS, sessions);
-      }
-    } catch (error) {
-      console.error('Failed to list sessions', error);
-    }
   }
 }

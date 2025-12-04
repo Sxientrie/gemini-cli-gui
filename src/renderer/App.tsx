@@ -1,26 +1,48 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Chat } from './components/Chat';
 import { Sidebar } from './components/Sidebar';
 import { LayoutGrid, Settings, FolderOpen, MessageSquare } from 'lucide-react';
 import clsx from 'clsx';
 import { useGemini } from './hooks/useGemini';
 import { StartupModal } from './components/StartupModal';
+import { AuthModal } from './components/AuthModal';
+import { AppErrorCode } from '../shared/types';
 
 // app component
-// main layout container. manages navigation and global state.
+// main layout. manages navigation and global state.
 
 function App() {
   const [activeTab, setActiveTab] = useState('chat');
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const { messages, isGenerating, sendPrompt, stopGeneration, error, sessions, listSessions, sessionId, loadSession, clearSession, status, version } = useGemini();
 
-  // load sessions on mount
-  React.useEffect(() => {
+  useEffect(() => {
+    window.api.auth.hasKey().then((hasKey) => {
+      if (!hasKey) {
+        setIsAuthModalOpen(true);
+      }
+    });
+  }, []);
+
+  useEffect(() => {
+    if (error?.code === AppErrorCode.NO_API_KEY) {
+      setIsAuthModalOpen(true);
+    }
+  }, [error]);
+
+  useEffect(() => {
     listSessions();
   }, []);
 
   return (
     <div className="flex h-screen w-screen bg-background text-zinc-200 overflow-hidden font-sans selection:bg-zinc-700 selection:text-zinc-200 p-2 gap-1 text-xs">
       <StartupModal status={status} version={version} error={error} />
+      <AuthModal 
+        isOpen={isAuthModalOpen} 
+        onAuthenticated={() => setIsAuthModalOpen(false)} 
+        onCancel={() => setIsAuthModalOpen(false)}
+        canCancel={true}
+      />
       {/* navigation island */}
       <nav className="w-12 flex flex-col items-center py-3 gap-3 bg-surface backdrop-blur-md border border-border rounded-lg z-50 shadow-lg">
         <div className="w-8 h-8 rounded-md bg-zinc-200 flex items-center justify-center mb-2 shadow-[0_0_15px_rgba(255,255,255,0.1)]">
@@ -44,7 +66,10 @@ function App() {
 
         <div className="flex-1" />
 
-        <button className="p-2 text-zinc-600 hover:text-zinc-400 transition-colors">
+        <button 
+          onClick={() => setIsAuthModalOpen(true)}
+          className="p-2 text-zinc-600 hover:text-zinc-400 transition-colors"
+        >
           <Settings className="w-5 h-5" />
         </button>
       </nav>

@@ -1,17 +1,34 @@
 @import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap");
 
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+
+@theme {
+  /* zinc & void palette - following the architecture spec */
+  --color-background: #09090b;
+  --color-surface: #18181b;
+  --color-surface-raised: #252526;
+  --color-surface-overlay: #2d2d2d;
+  --color-border: #27272a;
+
+  --color-brand: #3b82f6;
+  --color-brand-hover: #2563eb;
+
+  /* typography */
+  --font-sans: "Inter", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
+
+  /* zinc scale for text */
+  --color-text-primary: #e4e4e7; /* zinc-200 */
+  --color-text-secondary: #71717a; /* zinc-500 */
+  --color-text-tertiary: #52525b; /* zinc-600 */
+}
 
 @layer base {
-  :root {
-    --background: 9 9 11; /* #09090b */
-    --surface: 24 24 27; /* #18181b */
-    --border: 39 39 42; /* #27272a */
-  }
-
   body {
-    @apply bg-background text-zinc-200 font-sans antialiased;
+    background-color: var(--color-background);
+    color: var(--color-text-primary);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 }

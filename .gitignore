@@ -127,5 +127,4 @@ Thumbs.db
 /gemini-cli-main
 *.txt
 vite.config.ts.timestamp*
-
 .agent/

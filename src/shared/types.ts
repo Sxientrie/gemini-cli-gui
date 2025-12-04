@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
-// gemini cli headless json schema
-// defines the shape of events streaming from the cli process.
+// cli event schemas
+// defines shape of events streaming from cli process.
 
 export const GeminiToolSchema = z.object({
   name: z.string(),
@@ -15,7 +15,6 @@ export const GeminiModelSchema = z.object({
   capabilities: z.array(z.string()),
 });
 
-// event types emitted by the cli
 export const GeminiEventTypeSchema = z.enum([
   'init',
   'message',
@@ -109,6 +108,10 @@ export const IPC_CHANNELS = {
   ON_STATUS_CHANGE: 'gemini:status-change',
   GET_STATUS: 'gemini:get-status',
   GET_VERSION: 'gemini:get-version',
+  // Auth channels
+  AUTH_HAS_KEY: 'auth:has-key',
+  AUTH_SAVE_KEY: 'auth:save-key',
+  AUTH_CLEAR_KEY: 'auth:clear-key',
 } as const;
 
 export type GeminiStatus = 'checking' | 'ready' | 'error' | 'active';
@@ -117,6 +120,7 @@ export enum AppErrorCode {
   CLI_NOT_FOUND = 'CLI_NOT_FOUND',
   AUTH_FAILED = 'AUTH_FAILED',
   RATE_LIMITED = 'RATE_LIMITED',
+  NO_API_KEY = 'NO_API_KEY',
   UNKNOWN = 'UNKNOWN',
 }
 

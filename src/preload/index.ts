@@ -45,4 +45,27 @@ contextBridge.exposeInMainWorld('api', {
   },
   getStatus: () => ipcRenderer.invoke(IPC_CHANNELS.GET_STATUS),
   getVersion: () => ipcRenderer.invoke(IPC_CHANNELS.GET_VERSION),
+
+  // auth
+  auth: {
+    hasKey: () => ipcRenderer.invoke(IPC_CHANNELS.AUTH_HAS_KEY),
+    saveKey: (key: string) => ipcRenderer.invoke(IPC_CHANNELS.AUTH_SAVE_KEY, key),
+    clearKey: () => ipcRenderer.invoke(IPC_CHANNELS.AUTH_CLEAR_KEY),
+  },
+
+  // database operations
+  db: {
+    getSessions: () => ipcRenderer.invoke('db:get-sessions'),
+    getSession: (sessionId: string) => ipcRenderer.invoke('db:get-session', sessionId),
+    createSession: (data: { id: string; title: string; createdAt: Date; status?: 'active' | 'archived' }) =>
+      ipcRenderer.invoke('db:create-session', data),
+    updateSession: (sessionId: string, data: Partial<{ title: string; status: 'active' | 'archived' }>) =>
+      ipcRenderer.invoke('db:update-session', sessionId, data),
+    deleteSession: (sessionId: string) => ipcRenderer.invoke('db:delete-session', sessionId),
+    getThoughts: (sessionId: string) => ipcRenderer.invoke('db:get-thoughts', sessionId),
+    saveThought: (data: { id: string; sessionId: string; type: string; content: string; timestamp: Date }) =>
+      ipcRenderer.invoke('db:save-thought', data),
+    saveThoughts: (data: Array<{ id: string; sessionId: string; type: string; content: string; timestamp: Date }>) =>
+      ipcRenderer.invoke('db:save-thoughts', data),
+  },
 });
